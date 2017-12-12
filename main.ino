@@ -1,5 +1,8 @@
 
 //#include "Metro.h"
+#include <Servo.h>
+Servo myservo;
+int pos = 0;
 #include <Stepper.h>
 #include "I2Cdev.h"
 #include "MPU6050_6Axis_MotionApps20.h"
@@ -44,6 +47,7 @@ float sharkstartingdistance = -100; //CAN CHANGE
 float sharkdistance = sharkstartingdistance; //CAN CHANGE
 int stepperstepsShark = 0;
 int stepperstepsFish = 0;
+int steps = -2;
 float time1 = 0;
 float time2 = 0;
 float dt = 0;
@@ -80,16 +84,15 @@ int movefishposition(float fishdistance, float sharkdistance, int stepperstepsFi
 {
     gap = fishdistance-sharkdistance;
     int gaptoposition = -floor((200/(1+exp(-0.05*(0.25*gap-70))))-20); 
-    Serial.println(gaptoposition);
+    //Serial.println(gaptoposition);
     //if gap == 30: position = 0. if gap >350: position = 180.if gap < 5: position = -24+4
     int stepstoposition = (gaptoposition-stepperstepsFish);
-    Serial.println(stepstoposition);
+    //Serial.println(stepstoposition);
     myStepperFish.step(stepstoposition);
     //If the distance is great, make the fish position near 100 (but approaches asymptotically), and vice-versa.
     //stepperstepsFish += stepstoposition; //stepswalked
     stepperstepsFish = gaptoposition; //stepswalked
-
-    Serial.println(stepperstepsFish);
+    //Serial.println(stepperstepsFish);
     return stepperstepsFish;
 }
 
@@ -97,8 +100,17 @@ int moveshark(float sharkspeed, int stepperstepsShark)
 {   
     int SSF = floor(sharkspeed); //needs to be integer
     myStepperShark.setSpeed(SSF);
-    myStepperShark.step(-2); //10 steps worth of movement    
-    stepperstepsShark += -2; //steps walked
+    if (stepperstepsShark > 70)
+    {
+      steps = 2;
+    }
+    else if (stepperstepsShark < 0)
+    {
+      steps = -2;
+    }
+    myStepperShark.step(steps); //2 steps worth of movement    
+    stepperstepsShark += steps; //steps walked
+    
     return stepperstepsShark;
 }
 
@@ -107,18 +119,19 @@ void sharkeat(float sharkspeed, int stepperstepsShark)
     int SSF = floor(sharkspeed);
     myStepperShark.setSpeed(SSF);
     int stepstoorigin = (-(200+stepperstepsShark%200));
-    myStepperShark.step(stepstoorigin);
-    myStepperFish.step(-(stepperstepsFish-400)); //move fish to back, 400 is from 0 position to back
+    //myStepperShark.step(stepstoorigin); //if shark is moving
+    myStepperFish.step(-(stepperstepsFish-375)); //move fish to back, 400 is from 0 position to back
     //myStepperFish.step(700); //move all the way back
     myStepperShark.step(-100);
     Serial.println("tasty");
     delay(5000);
-    myStepperShark.step(-100);
-    myStepperFish.step(-400);
+    myStepperShark.step(100);
+    myStepperFish.step(-375);
     exit(0);
 }
 
 void setup() {
+    myservo.attach(5);  
     myStepperFish.setSpeed(60);
     #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
         Wire.begin();
@@ -172,13 +185,13 @@ void loop() {
     spd = getfishspeed();
     //Serial.println(spd);
     //Serial.print("\n");
-    if (spd<8000)
+    if (spd<12000)
     {
-      fishspeed = (spd/80);
+      fishspeed = (spd/45);
     }
     else
     {
-      fishspeed = 8000/80;
+      fishspeed = 12000/120;
     }
  
   
@@ -199,7 +212,8 @@ void loop() {
     if (fishdistance >= target_distance) //fish made it!
     {
         Serial.println("YOU SURVIVED");
-        delay(500);
+        delay(5000);
+        myStepperFish.step(-stepperstepsFish);
         exit(0);
         
     }
@@ -214,10 +228,20 @@ void loop() {
                     
     
     stepperstepsFish = movefishposition(fishdistance, sharkdistance, stepperstepsFish);
-    stepperstepsShark = moveshark(sharkspeed, stepperstepsShark);
-    
-
+    //stepperstepsShark = moveshark(sharkspeed, stepperstepsShark);
+    /*
+    if (pos = 0; pos <= 90; pos += 1;) { // goes from 0 degrees to 180 degrees
+      // in steps of 1 degree
+      myservo.write(pos);              
+      //delay(2);                       
+    }
+    if (pos = 90; pos >= 0; pos -= 1;) { 
+      myservo.write(pos);              
+      //delay(2);                       
+    }
+    */
     time2 = millis(); 
     //Serial.println(time2);
+
 }
 
