@@ -1,6 +1,6 @@
 #include <Stepper.h>
 
-//Start of MPU6050 Accelerometer setup code
+//Start of MPU6050 Accelerometer initial setup code
 #include "I2Cdev.h"
 #include "MPU6050_6Axis_MotionApps20.h"
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -24,28 +24,39 @@ volatile bool mpuInterrupt = false;
 void dmpDataReady() {
     mpuInterrupt = true;
 }
-//End of MPU6050 Accelerometer setup code
+//End of MPU6050 Accelerometer initial setup code
 
 //Setup stepper motors
 const int stepsPerRevolution = 200;
 Stepper myStepperFish(stepsPerRevolution, 6, 7, 8, 9);
 Stepper myStepperShark(stepsPerRevolution, 10, 11, 12, 13);
 
-//setup variables for the game, these are better explained in context
-float spd;
-float gap;
-float target_distance = 1000;
-float fishspeed = 0;
-float sharkspeed = 10; //CAN CHANGE
-float fishdistance = 0;
-float sharkstartingdistance = -100; //CAN CHANGE
+/*
+
+THE BASICS:
+The shark chases the fish. They begin a distance away from each other. The shark has a speed that increases over time. 
+The fish has a speed that is determined by the user's movement. They travel over a targer distance.
+If for any reason the fish gets to the same position as the shark, the shark eats the fish and you lose.
+If the fish gets to the maximum distance x = 1000, it escapes and you win.
+The motors change their behaviour as functions of the speeds of the shark and fish.
+
+*/
+
+//setup variables for the game
+float spd; //raw speed value from accelerometer
+float gap; //gap between fish and shark
+float target_distance = 1000; //the finish line distance
+float fishspeed = 0; //initialise fish speed, set to 0
+float sharkspeed = 10; //initialise shark speed, CAN CHANGE 
+float fishdistance = 0; //initialise fish distance, set to 0
+float sharkstartingdistance = -100; //initialise shark distance, set to -100 to give the fish a headstart, CAN CHANGE
 float sharkdistance = sharkstartingdistance; //CAN CHANGE
-int stepperstepsShark = 0;
-int stepperstepsFish = 0;
-int steps = -2;
-float time1 = 0;
-float time2 = 0;
-float dt = 0;
+int stepperstepsShark = 0; //initialise shark current position
+int stepperstepsFish = 0; //initialise fish current position
+int steps = -2; //initialise steps per loop for shark movement
+float time1 = 0; //initialise time marker variable 1
+float time2 = 0; //initialise time marker variable 2
+float dt = 0; //initialise time for loop to run
 
 float getfishspeed() { //reads accelerometer and gets fish speed. Taken from example MPU6050 code, but is modified.
 if (!dmpReady) return;
@@ -84,11 +95,11 @@ int movefishposition(float fishdistance, float sharkdistance, int stepperstepsFi
     return stepperstepsFish;
 }
 
-int moveshark(float sharkspeed, int stepperstepsShark)
+int moveshark(float sharkspeed, int stepperstepsShark) // Function that moves the shark
 {   
     int SSF = floor(sharkspeed); //needs to be integer
     myStepperShark.setSpeed(SSF); //shark stepper speed scales with theoretical shark speed
-    if (stepperstepsShark > 70)
+    if (stepperstepsShark > 70) //makes the stepper go back and forth instead of around due to physical limitations.
     {
       steps = 2;
     }
@@ -96,31 +107,31 @@ int moveshark(float sharkspeed, int stepperstepsShark)
     {
       steps = -2;
     }
-    myStepperShark.step(steps); //2 steps worth of movement    
-    stepperstepsShark += steps; //steps walked
+    myStepperShark.step(steps); //only do a short movement each loop to keep perception that everything is running smoothly 
+    stepperstepsShark += steps; //update steps travelled
     
     return stepperstepsShark;
 }
 
-void sharkeat(float sharkspeed, int stepperstepsShark)
+void sharkeat(float sharkspeed, int stepperstepsShark) //eat the fish if it gets too close
 {
     int SSF = floor(sharkspeed);
     myStepperShark.setSpeed(SSF);
     int stepstoorigin = (-(200+stepperstepsShark%200));
     //myStepperShark.step(stepstoorigin); //if shark is moving
     myStepperFish.step(-(stepperstepsFish-375)); //move fish to back, 400 is from 0 position to back
-    //myStepperFish.step(700); //move all the way back
-    myStepperShark.step(-100);
+    myStepperShark.step(-100); //makes the shark eat
     Serial.println("tasty");
     delay(5000);
-    myStepperShark.step(100);
-    myStepperFish.step(-375);
-    exit(0);
+    myStepperShark.step(100); //reset position of shark
+    myStepperFish.step(-375); //reset position of fish
+    exit(0); //exits the code, an automatic restart can be programmed
 }
 
-void setup() {
-    myservo.attach(5);  
-    myStepperFish.setSpeed(60);
+void setup() 
+    myStepperFish.setSpeed(60); //set fish stepper speed
+
+    //Start of MPU6050 Accelerometer setup code
     #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
         Wire.begin();
         TWBR = 24;
@@ -153,40 +164,37 @@ void setup() {
         Serial.print(devStatus);
         Serial.println(F(")"));
     }
-
+    //End of MPU6050 Accelerometer setup code
 
 }
 
 
 
 void loop() {
-    Serial.println("--------loop working------");
+    Serial.println("--------loop working------"); //checks that the loop is running properly
     
  
-    dt = (time2 - time1)/1000;
-    Serial.println(dt);
+    dt = (time2 - time1)/1000; //time taken for the loop to run once, calculated from the two time markers
 
-        
-    time1 = millis();
-    //Serial.println(time1);
-    ///*
-    spd = getfishspeed();
-    //Serial.println(spd);
-    //Serial.print("\n");
+    time1 = millis(); //time marker 1
+
+    spd = getfishspeed(); //gets the speed from the accelerometer
+
     if (spd<12000)
     {
-      fishspeed = (spd/45);
+      fishspeed = (spd/45); //fishspeed is taken to be the reading from the accelerometer divided by scale factor for calibration
     }
     else
     {
-      fishspeed = 12000/120;
+      fishspeed = 12000/45; //ensures that the speed is capped
     }
  
   
-    sharkspeed += 5*dt;
-    fishdistance += fishspeed*dt;
-    sharkdistance += sharkspeed*dt;
+    sharkspeed += 5*dt; //shark gets faster at 5 speed units per unit time. This makes the game harder over time
+    fishdistance += fishspeed*dt; //fish distance increases. Distance = Speed * Time.
+    sharkdistance += sharkspeed*dt; //shark distance increases
     
+    //Serial command line information to see what is happening
     Serial.print("fishspeed: "); Serial.print(fishspeed);
     Serial.println("\n");
     Serial.print("fishdistance: "); Serial.print(fishdistance);
@@ -201,7 +209,7 @@ void loop() {
     {
         Serial.println("YOU SURVIVED");
         delay(5000);
-        myStepperFish.step(-stepperstepsFish);
+        myStepperFish.step(-stepperstepsFish); //reset fish position
         exit(0);
         
     }
@@ -209,27 +217,14 @@ void loop() {
     else if (sharkdistance >= (fishdistance)) //shark reached fish
     {
         sharkeat(sharkspeed, stepperstepsShark);
-        //Serial.println("DED");
-        //delay(500);
-        //exit(0);
     }
                     
     
-    stepperstepsFish = movefishposition(fishdistance, sharkdistance, stepperstepsFish);
-    //stepperstepsShark = moveshark(sharkspeed, stepperstepsShark);
-    /*
-    if (pos = 0; pos <= 90; pos += 1;) { // goes from 0 degrees to 180 degrees
-      // in steps of 1 degree
-      myservo.write(pos);              
-      //delay(2);                       
-    }
-    if (pos = 90; pos >= 0; pos -= 1;) { 
-      myservo.write(pos);              
-      //delay(2);                       
-    }
-    */
-    time2 = millis(); 
-    //Serial.println(time2);
+    stepperstepsFish = movefishposition(fishdistance, sharkdistance, stepperstepsFish); //updates fish position
+    //stepperstepsShark = moveshark(sharkspeed, stepperstepsShark); //updates shark speed and position.
+    // ^ can be reenabled if shark stepper is fixed
+
+    time2 = millis(); //time marker 2
 
 }
 
