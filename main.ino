@@ -1,6 +1,6 @@
 #include <Stepper.h>
 
-//Start of MPU6050 Accelerometer initial setup code
+//Start of MPU6050 Accelerometer initial set up code
 #include "I2Cdev.h"
 #include "MPU6050_6Axis_MotionApps20.h"
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -24,9 +24,9 @@ volatile bool mpuInterrupt = false;
 void dmpDataReady() {
     mpuInterrupt = true;
 }
-//End of MPU6050 Accelerometer initial setup code
+//End of MPU6050 Accelerometer initial set up code
 
-//Setup stepper motors
+//Set up stepper motors
 const int stepsPerRevolution = 200;
 Stepper myStepperFish(stepsPerRevolution, 6, 7, 8, 9);
 Stepper myStepperShark(stepsPerRevolution, 10, 11, 12, 13);
@@ -40,9 +40,11 @@ If for any reason the fish gets to the same position as the shark, the shark eat
 If the fish gets to the maximum distance x = 1000, it escapes and you win.
 The motors change their behaviour as functions of the speeds of the shark and fish.
 
+Fish tail and wave movement are constant but it is possible for them to be worked into the code.
+
 */
 
-//setup variables for the game
+//set up variables for the game
 float spd; //raw speed value from accelerometer
 float gap; //gap between fish and shark
 float target_distance = 1000; //the finish line distance
@@ -77,7 +79,7 @@ if ((mpuIntStatus & 0x10) || fifoCount == 1024) {
     mpu.dmpGetGravity(&gravity, &q);
     mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
     mpu.dmpGetLinearAccelInWorld(&aaWorld, &aaReal, &q); //Takes world acceleration, adjusted to ignore acceleration due to gravity
-    spd = abs(0.7*aaWorld.y+0.2*aaWorld.z+0.1*aaWorld.x-500); //The modified part that takes a linear combination of the three
+    spd = abs(0.7*aaWorld.y+0.2*aaWorld.z+0.1*aaWorld.x-500); //Takes a linear combination of the three
     //accelerometer outputs, prioritising movement in the y direction. -500 calibrates the speed to 0 for no movement.
 }
  return spd; //return the speed
@@ -95,7 +97,7 @@ int movefishposition(float fishdistance, float sharkdistance, int stepperstepsFi
     return stepperstepsFish;
 }
 
-int moveshark(float sharkspeed, int stepperstepsShark) // Function that moves the shark
+int moveshark(float sharkspeed, int stepperstepsShark) //function that moves the shark
 {   
     int SSF = floor(sharkspeed); //needs to be integer
     myStepperShark.setSpeed(SSF); //shark stepper speed scales with theoretical shark speed
@@ -108,18 +110,18 @@ int moveshark(float sharkspeed, int stepperstepsShark) // Function that moves th
       steps = -2;
     }
     myStepperShark.step(steps); //only do a short movement each loop to keep perception that everything is running smoothly 
-    stepperstepsShark += steps; //update steps travelled
+    stepperstepsShark += steps; //update current position of the shark
     
     return stepperstepsShark;
 }
 
-void sharkeat(float sharkspeed, int stepperstepsShark) //eat the fish if it gets too close
+void sharkeat(float sharkspeed, int stepperstepsShark) //function to eat the fish if it gets too close
 {
     int SSF = floor(sharkspeed);
     myStepperShark.setSpeed(SSF);
-    int stepstoorigin = (-(200+stepperstepsShark%200));
+    //int stepstoorigin = (-(200+stepperstepsShark%200)); // if shark is moving, return shark to 0 position
     //myStepperShark.step(stepstoorigin); //if shark is moving
-    myStepperFish.step(-(stepperstepsFish-375)); //move fish to back, 400 is from 0 position to back
+    myStepperFish.step(-(stepperstepsFish-375)); //move fish to back, 400 is from 0 position to back. Factors in current fish position
     myStepperShark.step(-100); //makes the shark eat
     Serial.println("tasty");
     delay(5000);
@@ -131,7 +133,7 @@ void sharkeat(float sharkspeed, int stepperstepsShark) //eat the fish if it gets
 void setup() 
     myStepperFish.setSpeed(60); //set fish stepper speed
 
-    //Start of MPU6050 Accelerometer setup code
+    //Start of MPU6050 Accelerometer set up code
     #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
         Wire.begin();
         TWBR = 24;
@@ -164,7 +166,7 @@ void setup()
         Serial.print(devStatus);
         Serial.println(F(")"));
     }
-    //End of MPU6050 Accelerometer setup code
+    //End of MPU6050 Accelerometer set up code
 
 }
 
@@ -222,7 +224,7 @@ void loop() {
     
     stepperstepsFish = movefishposition(fishdistance, sharkdistance, stepperstepsFish); //updates fish position
     //stepperstepsShark = moveshark(sharkspeed, stepperstepsShark); //updates shark speed and position.
-    // ^ can be reenabled if shark stepper is fixed
+    // ^ can be reenabled if shark stepper movement is smoothed to avoid stalling
 
     time2 = millis(); //time marker 2
 
