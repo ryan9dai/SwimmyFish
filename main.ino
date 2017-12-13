@@ -1,9 +1,6 @@
-
-//#include "Metro.h"
-#include <Servo.h>
-Servo myservo;
-int pos = 0;
 #include <Stepper.h>
+
+//Start of MPU6050 Accelerometer setup code
 #include "I2Cdev.h"
 #include "MPU6050_6Axis_MotionApps20.h"
 #if I2CDEV_IMPLEMENTATION == I2CDEV_ARDUINO_WIRE
@@ -27,19 +24,17 @@ volatile bool mpuInterrupt = false;
 void dmpDataReady() {
     mpuInterrupt = true;
 }
+//End of MPU6050 Accelerometer setup code
 
-//////
-//Metro stepperMetro = Metro(25000); //subject to change
+//Setup stepper motors
 const int stepsPerRevolution = 200;
 Stepper myStepperFish(stepsPerRevolution, 6, 7, 8, 9);
 Stepper myStepperShark(stepsPerRevolution, 10, 11, 12, 13);
-//////
 
+//setup variables for the game, these are better explained in context
 float spd;
 float gap;
-//reset_button = False
-float target_distance = 1000; //CAN CHANGE
-//float sharkacceleration = 5*(dt); //after 10 seconds, goes from 30 to 80. CAN CHANGE
+float target_distance = 1000;
 float fishspeed = 0;
 float sharkspeed = 10; //CAN CHANGE
 float fishdistance = 0;
@@ -51,10 +46,8 @@ int steps = -2;
 float time1 = 0;
 float time2 = 0;
 float dt = 0;
-//int minimumFishSteps = -24;
-//int maximumFishSteps = 180;
 
-float getfishspeed() { //reads accelerometer and gets fish speed
+float getfishspeed() { //reads accelerometer and gets fish speed. Taken from example MPU6050 code, but is modified.
 if (!dmpReady) return;
 while (!mpuInterrupt && fifoCount < packetSize) {
 }
@@ -72,34 +65,29 @@ if ((mpuIntStatus & 0x10) || fifoCount == 1024) {
     mpu.dmpGetAccel(&aa, fifoBuffer);
     mpu.dmpGetGravity(&gravity, &q);
     mpu.dmpGetLinearAccel(&aaReal, &aa, &gravity);
-    mpu.dmpGetLinearAccelInWorld(&aaWorld, &aaReal, &q);
-    spd = abs(0.7*aaWorld.y+0.2*aaWorld.z+0.1*aaWorld.x-500);
-    //Serial.print(spd);
-    //Serial.print("\n");
+    mpu.dmpGetLinearAccelInWorld(&aaWorld, &aaReal, &q); //Takes world acceleration, adjusted to ignore acceleration due to gravity
+    spd = abs(0.7*aaWorld.y+0.2*aaWorld.z+0.1*aaWorld.x-500); //The modified part that takes a linear combination of the three
+    //accelerometer outputs, prioritising movement in the y direction. -500 calibrates the speed to 0 for no movement.
 }
- return spd;
+ return spd; //return the speed
 } 
 
-int movefishposition(float fishdistance, float sharkdistance, int stepperstepsFish)
+int movefishposition(float fishdistance, float sharkdistance, int stepperstepsFish) //function that moves the fish position
 {
     gap = fishdistance-sharkdistance;
-    int gaptoposition = -floor((200/(1+exp(-0.05*(0.25*gap-70))))-20); 
-    //Serial.println(gaptoposition);
-    //if gap == 30: position = 0. if gap >350: position = 180.if gap < 5: position = -24+4
-    int stepstoposition = (gaptoposition-stepperstepsFish);
-    //Serial.println(stepstoposition);
+    int gaptoposition = -floor((200/(1+exp(-0.05*(0.25*gap-70))))-20); //fish position is based on the distance between fish and shark
+    //if gap == 30: position = 0. if gap >350: position = 0180.if gap < 5: position = 20
+    //This is done using a sigmoid curve so that the fish asymptotically reaches a position between of 20 to -180.
+    int stepstoposition = (gaptoposition-stepperstepsFish); //calculates the steps to get to the position, factoring in current position
     myStepperFish.step(stepstoposition);
-    //If the distance is great, make the fish position near 100 (but approaches asymptotically), and vice-versa.
-    //stepperstepsFish += stepstoposition; //stepswalked
-    stepperstepsFish = gaptoposition; //stepswalked
-    //Serial.println(stepperstepsFish);
+    stepperstepsFish = gaptoposition; //update the current position of the fish
     return stepperstepsFish;
 }
 
 int moveshark(float sharkspeed, int stepperstepsShark)
 {   
     int SSF = floor(sharkspeed); //needs to be integer
-    myStepperShark.setSpeed(SSF);
+    myStepperShark.setSpeed(SSF); //shark stepper speed scales with theoretical shark speed
     if (stepperstepsShark > 70)
     {
       steps = 2;
